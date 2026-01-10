@@ -1,96 +1,83 @@
-## Code Quality & Design Principles
-
-### General Design
-- Don't Repeat Yourself (DRY) - abstract common functionality
-- Prioritize readability and maintainability over clever solutions
-- Write for testability with clear dependencies and separation of concerns
-- Prefer composition over inheritance
-- Use dependency injection for modularity
-- Make methods idempotent when possible
+## General Design & Structure
+- Functions: one responsibility, 20–30 lines max
+- Files ≤ 300–500 lines; split logically
+- DRY: abstract common functionality
+- Prioritize readability & maintainability over cleverness
+- Favor composition + dependency injection over inheritance
+- Minimize args (0–2 ideal, ≤3), avoid boolean flags
+- Extract nested logic → well-named functions
+- Top-down order: high-level → low-level
+- Make methods idempotent when reasonable
 
 ### SOLID Principles
-- **Single Responsibility**: Each class/function should have one reason to change
-- **Open/Closed**: Open for extension, closed for modification (use inheritance, interfaces, composition)
-- **Liskov Substitution**: Subclasses must be replaceable with their base classes
-- **Interface Segregation**: Create specific, focused interfaces rather than large general-purpose ones
-- **Dependency Inversion**: Depend on abstractions, not concretions (use dependency injection)
+- **Single Responsibility**: one reason to change
+- **Open/Closed**: open for extension, closed for modification
+- **Liskov Substitution**: subclasses fully replaceable
+- **Interface Segregation**: small, focused interfaces
+- **Dependency Inversion**: depend on abstractions (use DI)
 
 ### Functional Programming Principles
-- **Immutability**: Prefer immutable data structures; avoid mutating objects/arrays
-- **Pure Functions**: Functions should return the same output for the same input with no side effects
-- **Avoid Side Effects**: Isolate I/O, state changes, and mutations to specific boundaries
-- **Function Composition**: Build complex operations by composing smaller, reusable functions
-- **Declarative over Imperative**: Use map/filter/reduce instead of loops when appropriate
-- **Avoid Shared State**: Pass data explicitly rather than relying on shared mutable state
-- **Higher-Order Functions**: Use functions that take or return functions for better abstraction
-- **Early Returns**: Return early to avoid deep nesting and improve readability
+- Prefer immutability & pure functions
+- Isolate side effects (I/O, state) to boundaries
+- Compose small reusable functions
+- Declarative > imperative (map/filter/reduce over loops)
+- Avoid shared mutable state
+- Use early returns to reduce nesting
 
-### Planning Process
-Before implementing:
-1. Outline the solution approach
-2. List edge cases and error scenarios
-3. Identify dependencies and impacts
-4. Consider alternative approaches
+## Planning Process
+Before:  
+1. Outline approach  
+2. List edge cases & errors  
+3. Identify dependencies  
+4. Consider alternatives  
 
-After implementation:
-1. Validate against original requirements
-2. Document any deviations
-3. Highlight assumptions made
-4. Review answer against general design principles
+After:  
+1. Validate requirements  
+2. Document deviations & assumptions  
+3. Check against design principles  
+4. Include Big-O analysis
 
-## Naming Conventions
-- Follow established language standards (e.g., [PEP 8](https://peps.python.org/pep-0008/) for Python, standard JS conventions for JavaScript).
-- Use intention-revealing names that clearly express purpose; avoid single letters or unclear abbreviations.
-- Indicate units or constraints in variable names (e.g., `timeoutMs`, `maxRetries`).
+## Naming, Documentation & Types
+- Follow established language standards ([PEP 8](https://peps.python.org/pep-0008/) for Python, [Airbnb JavaScript Style Guide](https://github.com/airbnb/javascript) for JavaScript/TypeScript).
+- Intention-revealing names, no magic numbers
+- Units/constraints in names (`timeout_ms`, `max_retries`)
+- Small scope, init vars near usage
+- Short docstrings for all public items
+- Type hints everywhere possible
+- Comments explain **why**, not **what**, only comment when a WHY is needed.
 
-## Functions & Structure
-- Functions should do one thing only, no longer than 20-30 lines, long functions are where classes hide.
-- Minimize function arguments (0-2 ideal, max 3)
-- Avoid boolean flag arguments that change behavior
-- Extract nested code into well-named functions
-- Order functions top-down (high-level to low-level)
-- Group related functionality together
-- Files should be no longer than 300-500 lines; split larger files logically
-
-## Variables & Constants
-- Initialize variables close to their usage
-- Prefer smaller scope over larger scope
-- Use named constants instead of magic numbers (e.g., `PI = 3.14` not `3.14`)
-
-## Documentation & Types
-- Include SHORT docstrings for all functions, classes, and modules
-- Use type hints for all Python function parameters and return values
-- Write self-documenting code with clear names instead of comments when possible
-- Use comments to explain "why" not "what"
-- Remove outdated or misleading comments
-- Preserve existing docstrings unless they're incorrect
-
-## Error Handling & Logging
-- Use exceptions rather than return codes
-- Provide context with exceptions
-- Don't return null - use exceptions or special case objects
-- Use appropriate log levels (info, warning, error)
+## Error Handling & Robustness
+- Fail fast: raise meaningful exceptions early
+- Never silently swallow exceptions
+- Prefer specific exceptions over `Exception`
+- No `None`/magic values for errors → raise or Result pattern
+- Log appropriately (debug/info/warn/error)
 
 ## Security & Configuration
-- Validate all inputs
-- Never hardcode credentials
-- Use environment variables or configuration files for settings
+- Validate/sanitize **all** external input
+- Never commit secrets → env vars / secret manager
+- Least privilege everywhere
+- Use strong password hashing (Argon2id/bcrypt)
+- Pin deps & audit regularly
 
-## Performance
-- Watch for n+1 query issues and optimize database access
-- Consider performance implications for repeated operations
+## Performance & Scalability
+- Know your big-O — avoid nested loops, N+1 queries
+- Cache wisely, invalidate correctly
+- Profile before deep optimization
+- Use right data structures (`set`, `deque`, generators)
 
-## File-Specific Guidelines
-- **YAML**: Never suggest inline scripting or eval; ensure proper indentation
-- **SQL**: No empty space at end of lines
-- **All files**: Follow established patterns in the existing codebase
+## Testing
+- Tests in parallel with code (prefer TDD)
+- ≥80% coverage on core logic
+- One assertion per test
+- Fast deterministic unit tests > slow integration
+- Mock only externals, never own code
 
 ## Change Management
-- Preserve existing functionality and user modifications unless explicitly asked to change
-- Avoid breaking changes unless explicitly requested
-- Consider backward compatibility for API changes
-- Provide reasoning for suggested changes
-- Suggest additional improvements separately from requested changes
+- Preserve existing behavior unless requested
+- Avoid breaking changes
+- Explain all suggestions
+- Separate nice-to-haves from requirements
 
 ## Communication Style
 - Start every answer with "Hey Jack" and end with "Cheers Jack!"
