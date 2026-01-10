@@ -1,12 +1,5 @@
 ## Code Quality & Design Principles
 
-### SOLID Principles
-- **Single Responsibility**: Each class/function should have one reason to change
-- **Open/Closed**: Open for extension, closed for modification (use inheritance, interfaces, composition)
-- **Liskov Substitution**: Subclasses must be replaceable with their base classes
-- **Interface Segregation**: Create specific, focused interfaces rather than large general-purpose ones
-- **Dependency Inversion**: Depend on abstractions, not concretions (use dependency injection)
-
 ### General Design
 - Don't Repeat Yourself (DRY) - abstract common functionality
 - Prioritize readability and maintainability over clever solutions
@@ -14,6 +7,13 @@
 - Prefer composition over inheritance
 - Use dependency injection for modularity
 - Make methods idempotent when possible
+
+### SOLID Principles
+- **Single Responsibility**: Each class/function should have one reason to change
+- **Open/Closed**: Open for extension, closed for modification (use inheritance, interfaces, composition)
+- **Liskov Substitution**: Subclasses must be replaceable with their base classes
+- **Interface Segregation**: Create specific, focused interfaces rather than large general-purpose ones
+- **Dependency Inversion**: Depend on abstractions, not concretions (use dependency injection)
 
 ### Functional Programming Principles
 - **Immutability**: Prefer immutable data structures; avoid mutating objects/arrays
