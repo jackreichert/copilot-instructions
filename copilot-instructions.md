@@ -1,4 +1,4 @@
-## General Design & Structure
+## General Coding Standards, Design, & Structure
 - Functions: one responsibility, 20–30 lines max
 - Files ≤ 300–500 lines; split logically
 - DRY: abstract common functionality
