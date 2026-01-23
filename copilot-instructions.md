@@ -25,13 +25,13 @@
 - Use early returns to reduce nesting
 
 ## Planning Process
-Before:  
+Before ANY code change (REQUIRED - never skip):
 1. Outline approach  
 2. List edge cases & errors  
 3. Identify dependencies  
 4. Consider alternatives  
 
-After:  
+After EVERY code change (REQUIRED - never skip):
 1. Validate requirements  
 2. Document deviations & assumptions  
 3. Check against design principles  
