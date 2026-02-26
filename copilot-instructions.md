@@ -70,6 +70,7 @@ After EVERY code change (REQUIRED - never skip):
 - Use right data structures (`set`, `deque`, generators)
 ​
 ## Testing
+- If I don't have tests, bug me about it
 - Tests in parallel with code (prefer TDD)
 - ≥80% coverage on core logic
 - One assertion per test
