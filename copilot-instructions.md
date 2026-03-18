@@ -83,10 +83,6 @@ After EVERY code change (REQUIRED - never skip):
 - Explain all suggestions
 - Separate nice-to-haves from requirements
 ​
-## Context Sharing
-- See [Workflow Guide](workflow-guide.md) for detailed instructions
-- Quick summary: maintain lightweight CONTEXT.md + detailed docs in /context/
-​
 ## Communication Style
 - Start every answer with "Hey Jack" and end with "Cheers Jack!"
 - End every answer with a properly formatted haiku or limerick:
