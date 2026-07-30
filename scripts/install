@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BIN_DIR="${HOME}/.local/bin"
+CONFIG_DIR="${HOME}/.config/link-agents"
+CONFIG_FILE="${CONFIG_DIR}/config"
+TEMPLATE_FILE="${HOME}/AGENTS.md"
+
+backup_file() {
+  local path="$1"
+  local backup="${path}.bak.$(date +%Y%m%d%H%M%S).$$"
+  cp -p "$path" "$backup"
+  echo "backed up $path to $backup"
+}
+
+prompt_for_name() {
+  local name="${AGENTS_USER_NAME:-}"
+  while [[ -z "$name" ]]; do
+    if [[ ! -t 0 ]]; then
+      echo "error: interactive input is unavailable; set AGENTS_USER_NAME and rerun" >&2
+      exit 1
+    fi
+    read -r -p "Your name (used in agent greetings and paths): " name
+  done
+  if [[ "$name" == *$'\n'* ]] || [[ "$name" == *$'\r'* ]]; then
+    echo "error: name must be a single line" >&2
+    exit 1
+  fi
+  printf '%s' "$name"
+}
+
+main() {
+  local name
+  name="$(prompt_for_name)"
+
+  mkdir -p "$BIN_DIR" "$CONFIG_DIR"
+  if [[ -f "$TEMPLATE_FILE" ]] && ! cmp -s "$REPO_ROOT/AGENTS.md" "$TEMPLATE_FILE"; then
+    backup_file "$TEMPLATE_FILE"
+  fi
+  if [[ -f "$CONFIG_FILE" ]] && [[ "$(cat "$CONFIG_FILE")" != "AGENTS_USER_NAME=$name" ]]; then
+    backup_file "$CONFIG_FILE"
+  fi
+  install -m 755 "$REPO_ROOT/scripts/link-agents" "$BIN_DIR/link-agents"
+  install -m 644 "$REPO_ROOT/AGENTS.md" "$TEMPLATE_FILE"
+  printf 'AGENTS_USER_NAME=%s\n' "$name" >"$CONFIG_FILE"
+
+  echo "installed link-agents to $BIN_DIR/link-agents"
+  echo "installed template to $TEMPLATE_FILE"
+  echo "saved configuration to $CONFIG_FILE"
+  "$BIN_DIR/link-agents"
+
+  case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) echo "note: add $BIN_DIR to PATH to run link-agents directly" ;;
+  esac
+}
+
+main "$@"

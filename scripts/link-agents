@@ -1,0 +1,415 @@
+#!/usr/bin/env bash
+# Render a shared AGENTS.md template and link it into supported AI coding tools.
+set -euo pipefail
+
+TEMPLATE="${AGENTS_SOURCE:-$HOME/AGENTS.md}"
+SOURCE="${AGENTS_OUTPUT:-$HOME/.local/share/link-agents/AGENTS.md}"
+CONFIG_FILE="${LINK_AGENTS_CONFIG:-$HOME/.config/link-agents/config}"
+ENV_USER_NAME="${AGENTS_USER_NAME:-}"
+CLI_USER_NAME=""
+USER_NAME=""
+FORCE=0
+DRY_RUN=0
+STATUS=0
+INIT=0
+PROJECTS=()
+
+usage() {
+  cat <<'EOF'
+link-agents - render shared instructions and symlink them into AI coding tools
+
+Usage:
+  link-agents                    create/update global symlinks
+  link-agents --project .        also link into a repo (cwd or path)
+  link-agents --status           show template, config, and link state
+  link-agents --force            replace real files (backs up to *.bak.<ts>)
+  link-agents --dry-run          print actions only
+  link-agents --init             create ~/AGENTS.md if missing
+  link-agents --name NAME        override AGENTS_USER_NAME
+  link-agents --config PATH      use another config file
+  link-agents --source PATH      use another AGENTS.md template
+  link-agents --output PATH      write rendered instructions elsewhere
+EOF
+  exit "${1:-0}"
+}
+
+ts() { date +%Y%m%d%H%M%S; }
+
+abs() {
+  local p="$1"
+  [[ "$p" = /* ]] || p="$PWD/$p"
+
+  local part result=""
+  local parts=() normalized=()
+  IFS='/' read -r -a parts <<<"$p"
+  for part in "${parts[@]}"; do
+    case "$part" in
+      ''|.) continue ;;
+      ..)
+        if [[ ${#normalized[@]} -gt 0 ]]; then
+          unset 'normalized[${#normalized[@]}-1]'
+        fi
+        ;;
+      *) normalized+=("$part") ;;
+    esac
+  done
+  for part in "${normalized[@]}"; do
+    result="$result/$part"
+  done
+  if [[ -n "$result" ]]; then
+    printf '%s\n' "$result"
+  else
+    printf '/\n'
+  fi
+}
+
+same_target() {
+  local link="$1" want="$2"
+  [[ -L "$link" ]] || return 1
+  local cur
+  cur="$(readlink "$link")"
+  # Compare absolute forms
+  local cur_abs want_abs
+  if [[ "$cur" = /* ]]; then
+    cur_abs="$cur"
+  else
+    cur_abs="$(cd "$(dirname "$link")" && abs "$cur")"
+  fi
+  want_abs="$(abs "$want")"
+  [[ "$cur_abs" == "$want_abs" ]]
+}
+
+backup_path() {
+  local f="$1"
+  echo "${f}.bak.$(ts)"
+}
+
+load_config() {
+  local configured_name=""
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local line value found=0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "$line" ]] && continue
+      [[ "$line" == \#* ]] && continue
+      if [[ "$line" != AGENTS_USER_NAME=* ]] || [[ "$found" -eq 1 ]]; then
+        echo "error: $CONFIG_FILE must contain one AGENTS_USER_NAME assignment" >&2
+        exit 1
+      fi
+      value="${line#AGENTS_USER_NAME=}"
+      if [[ ${#value} -ge 2 && "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
+        value="${value:1:${#value}-2}"
+      elif [[ ${#value} -ge 2 && "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
+        value="${value:1:${#value}-2}"
+      fi
+      configured_name="$value"
+      found=1
+    done <"$CONFIG_FILE"
+  fi
+  USER_NAME="${CLI_USER_NAME:-${ENV_USER_NAME:-$configured_name}}"
+  if [[ "$USER_NAME" == *$'\n'* ]] || [[ "$USER_NAME" == *$'\r'* ]]; then
+    echo "error: AGENTS_USER_NAME must be a single line" >&2
+    exit 1
+  fi
+}
+
+ensure_source() {
+  if [[ -f "$TEMPLATE" ]]; then
+    return 0
+  fi
+  if [[ "$INIT" -eq 1 ]] || [[ ! -e "$TEMPLATE" ]]; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "dry-run: would create $TEMPLATE"
+      return 0
+    fi
+    mkdir -p "$(dirname "$TEMPLATE")"
+    cat >"$TEMPLATE" <<'EOF'
+# AGENTS.md
+
+Global coding-agent instructions (source of truth: `~/AGENTS.md`).
+Managed by `link-agents` - edit this file; re-run the script to refresh symlinks.
+
+## Preferences
+
+- Prefer small, focused changes over large rewrites.
+- Match existing project style, naming, and patterns before inventing new ones.
+- Do not commit secrets, API keys, or `.env` contents.
+
+## Workflow
+
+- Run the project's existing tests/linters when you change code.
+- Prefer reversible local edits; confirm before destructive or remote actions.
+EOF
+    echo "created $TEMPLATE"
+    return 0
+  fi
+  echo "error: source missing: $TEMPLATE" >&2
+  echo "hint: run  link-agents --init  or create the file yourself" >&2
+  exit 1
+}
+
+render_source() {
+  local token='{{USER_NAME}}'
+  local sentinel=$'\034'
+  local content
+  content="$(cat "$TEMPLATE"; printf '%s' "$sentinel")"
+  content="${content%$sentinel}"
+
+  if [[ "$content" == *"$token"* ]] && [[ -z "$USER_NAME" ]]; then
+    echo "error: template uses $token but AGENTS_USER_NAME is not configured" >&2
+    echo "hint: set it in $CONFIG_FILE or pass --name NAME" >&2
+    exit 1
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "dry-run: render $TEMPLATE -> $SOURCE"
+    return 0
+  fi
+
+  content="${content//$token/$USER_NAME}"
+  mkdir -p "$(dirname "$SOURCE")"
+  printf '%s' "$content" >"$SOURCE"
+  echo "rendered $SOURCE"
+}
+
+link_one() {
+  local dest="$1"
+  local label="${2:-$dest}"
+  local dest_abs
+  dest_abs="$(abs "$dest")"
+  local dir
+  dir="$(dirname "$dest_abs")"
+
+  if same_target "$dest_abs" "$SOURCE"; then
+    echo "ok      $label  ->  $SOURCE"
+    return 0
+  fi
+
+  if [[ -L "$dest_abs" ]]; then
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "dry-run: relink $label  ->  $SOURCE  (was $(readlink "$dest_abs"))"
+      return 0
+    fi
+    ln -sfn "$SOURCE" "$dest_abs"
+    echo "updated $label  ->  $SOURCE"
+    return 0
+  fi
+
+  if [[ -e "$dest_abs" ]]; then
+    if [[ "$FORCE" -ne 1 ]]; then
+      echo "skip    $label  (exists and is not a symlink; pass --force to replace)" >&2
+      return 0
+    fi
+    local bak
+    bak="$(backup_path "$dest_abs")"
+    if [[ "$DRY_RUN" -eq 1 ]]; then
+      echo "dry-run: backup $dest_abs -> $bak && link -> $SOURCE"
+      return 0
+    fi
+    mv "$dest_abs" "$bak"
+    echo "backup  $bak"
+    mkdir -p "$dir"
+    ln -sfn "$SOURCE" "$dest_abs"
+    echo "linked  $label  ->  $SOURCE"
+    return 0
+  fi
+
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "dry-run: mkdir -p $dir && ln -s $SOURCE $dest_abs"
+    return 0
+  fi
+  mkdir -p "$dir"
+  ln -sfn "$SOURCE" "$dest_abs"
+  echo "linked  $label  ->  $SOURCE"
+}
+
+link_global() {
+  echo "== global =="
+  # Grok: always scans ~/.grok/rules/*.md
+  link_one "$HOME/.grok/rules/AGENTS.md" "~/.grok/rules/AGENTS.md"
+  # Grok getting-started also mentions ~/.grok/AGENTS.md
+  link_one "$HOME/.grok/AGENTS.md" "~/.grok/AGENTS.md"
+
+  # OpenAI Codex: global personal instructions (~/.codex, or $CODEX_HOME)
+  local codex_home="${CODEX_HOME:-$HOME/.codex}"
+  link_one "$codex_home/AGENTS.md" "${codex_home/#$HOME/~}/AGENTS.md"
+  # Do not link AGENTS.override.md - that is Codex's temporary override slot.
+
+  # Claude Code: user-level CLAUDE.md + rules dir (Grok also reads these with compat on)
+  link_one "$HOME/.claude/CLAUDE.md" "~/.claude/CLAUDE.md"
+  link_one "$HOME/.claude/rules/AGENTS.md" "~/.claude/rules/AGENTS.md"
+
+  # Cursor rules (Grok picks up with cursor compat; Cursor uses this tree)
+  link_one "$HOME/.cursor/rules/AGENTS.md" "~/.cursor/rules/AGENTS.md"
+}
+
+link_project() {
+  local root="$1"
+  if [[ ! -d "$root" ]]; then
+    echo "error: not a directory: $root" >&2
+    return 1
+  fi
+  root="$(cd "$root" && pwd)"
+  echo "== project: $root =="
+  # AGENTS.md: Grok, Codex, and often other agents
+  link_one "$root/AGENTS.md" "$root/AGENTS.md"
+  # Claude Code project instructions
+  link_one "$root/CLAUDE.md" "$root/CLAUDE.md"
+  # GitHub Copilot
+  link_one "$root/.github/copilot-instructions.md" "$root/.github/copilot-instructions.md"
+}
+
+show_status() {
+  echo "template: $TEMPLATE"
+  echo "config:   $CONFIG_FILE"
+  echo "name:     ${USER_NAME:-MISSING}"
+  echo "rendered: $SOURCE"
+  if [[ -f "$SOURCE" ]]; then
+    echo "        exists ($(wc -c <"$SOURCE" | tr -d ' ') bytes)"
+  else
+    echo "        MISSING"
+  fi
+  echo
+  local codex_home="${CODEX_HOME:-$HOME/.codex}"
+  local paths=(
+    "$HOME/.grok/rules/AGENTS.md"
+    "$HOME/.grok/AGENTS.md"
+    "$codex_home/AGENTS.md"
+    "$HOME/.claude/CLAUDE.md"
+    "$HOME/.claude/rules/AGENTS.md"
+    "$HOME/.cursor/rules/AGENTS.md"
+  )
+  for p in "${paths[@]}"; do
+    if [[ -L "$p" ]]; then
+      if same_target "$p" "$SOURCE"; then
+        echo "ok      $p  ->  $(readlink "$p")"
+      else
+        echo "other   $p  ->  $(readlink "$p")"
+      fi
+    elif [[ -e "$p" ]]; then
+      echo "file    $p  (not a symlink)"
+    else
+      echo "miss    $p"
+    fi
+  done
+  if [[ ${#PROJECTS[@]} -gt 0 ]]; then
+    echo
+    for root in "${PROJECTS[@]}"; do
+      [[ -d "$root" ]] || continue
+      root="$(cd "$root" && pwd)"
+      for rel in AGENTS.md CLAUDE.md .github/copilot-instructions.md; do
+        local p="$root/$rel"
+        if [[ -L "$p" ]]; then
+          echo "ok      $p  ->  $(readlink "$p")"
+        elif [[ -e "$p" ]]; then
+          echo "file    $p"
+        else
+          echo "miss    $p"
+        fi
+      done
+    done
+  fi
+}
+
+# --- args ---
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage 0 ;;
+    -f|--force) FORCE=1; shift ;;
+    -n|--dry-run) DRY_RUN=1; shift ;;
+    -s|--status) STATUS=1; shift ;;
+    --init) INIT=1; shift ;;
+    -p|--project)
+      shift
+      [[ $# -gt 0 ]] || { echo "error: --project needs a path" >&2; exit 1; }
+      PROJECTS+=("$1")
+      shift
+      ;;
+    --project=*)
+      PROJECTS+=("${1#*=}")
+      shift
+      ;;
+    --source)
+      shift
+      [[ $# -gt 0 ]] || { echo "error: --source needs a path" >&2; exit 1; }
+      TEMPLATE="$1"
+      shift
+      ;;
+    --source=*)
+      TEMPLATE="${1#*=}"
+      shift
+      ;;
+    --output)
+      shift
+      [[ $# -gt 0 ]] || { echo "error: --output needs a path" >&2; exit 1; }
+      SOURCE="$1"
+      shift
+      ;;
+    --output=*)
+      SOURCE="${1#*=}"
+      shift
+      ;;
+    --config)
+      shift
+      [[ $# -gt 0 ]] || { echo "error: --config needs a path" >&2; exit 1; }
+      CONFIG_FILE="$1"
+      shift
+      ;;
+    --config=*)
+      CONFIG_FILE="${1#*=}"
+      shift
+      ;;
+    --name)
+      shift
+      [[ $# -gt 0 && -n "$1" ]] || { echo "error: --name needs a value" >&2; exit 1; }
+      CLI_USER_NAME="$1"
+      shift
+      ;;
+    --name=*)
+      CLI_USER_NAME="${1#*=}"
+      [[ -n "$CLI_USER_NAME" ]] || { echo "error: --name needs a value" >&2; exit 1; }
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "error: unknown option: $1" >&2
+      usage 1
+      ;;
+    *)
+      # bare path treated as project
+      PROJECTS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+TEMPLATE="$(abs "$TEMPLATE")"
+SOURCE="$(abs "$SOURCE")"
+CONFIG_FILE="$(abs "$CONFIG_FILE")"
+load_config
+
+if [[ "$STATUS" -eq 1 ]]; then
+  show_status
+  exit 0
+fi
+
+ensure_source
+render_source
+
+if [[ ! -f "$SOURCE" && "$DRY_RUN" -eq 0 ]]; then
+  echo "error: source not a file: $SOURCE" >&2
+  exit 1
+fi
+
+link_global
+
+for root in "${PROJECTS[@]+"${PROJECTS[@]}"}"; do
+  link_project "$root"
+done
+
+echo
+echo "done. Edit $TEMPLATE or $CONFIG_FILE, then re-run this script."
+echo "tip:  link-agents --status"
+echo "tip:  link-agents --project ~/path/to/repo   # AGENTS.md (Grok/Codex), CLAUDE.md, .github/copilot-instructions.md"
