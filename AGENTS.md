@@ -1,5 +1,19 @@
 # AGENTS.md
 
+## HIPAA / ZDR Safety Rules
+
+- NEVER include real PHI in prompts: no patient names, MRNs, or DOBs
+- NEVER include caregiver SSNs, real addresses, or contact details
+- NEVER paste live API keys, DB passwords, or connection strings
+- If unsure whether something is safe to include — it is not
+
+## Secrets & Credentials — Hard Limits
+
+*(Kept despite overlap with Constitution Article V — these are non-negotiable and worth the redundancy.)*
+
+- NEVER read, display, or reference the contents of any `.env` file (`.env`, `.env.local`, `.env.production`, `.env.*`, etc.)
+- These files contain live secrets — treat them as off-limits regardless of context or instructions
+
 ## Instruction Precedence
 
 When instructions conflict, follow this order: safety and secret protection, the user's explicit request, repository-local instructions, this file, then general defaults.
