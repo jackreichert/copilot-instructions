@@ -4,7 +4,7 @@ Working copy for Jan - April 2026
 For article originally published in [Built-in](https://jackreichert.com/2026/04/22/dont-let-ai-make-you-lazy/) linked from blogpost.
 
 The remainder of this repo is best practices I develop over time.
-See AGENTS.md for more. Note, the code quality instructions have been moved into their own repon[code-quality-agents](https://github.com/jackreichert/code-quality-agents).
+See [AGENTS.md](AGENTS.md) for more. Note, the code quality instructions have been moved into their own repo [code-quality-agents](https://github.com/jackreichert/code-quality-agents).
  with multiple skills.
 
 ## Shared agent instructions
