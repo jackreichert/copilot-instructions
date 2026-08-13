@@ -44,7 +44,7 @@ Be persistent: continue until the request is resolved or genuinely blocked. Use 
 
 If validation fails, return to the earliest step that can explain it instead of patching blindly. Continue past unrelated breakage unless it blocks the task, creates security or data-loss risk, or makes validation unreliable. Compress the loop for trivial tasks, and create a planning document only when the work benefits from one or the user requests it.
 
-Once per session, before the first substantial coding task, check whether the `/quality` framework and the always-on Constitution are active. Treat `/quality` as installed when its command or `quality-*` agents are available; treat the Constitution as installed only when its rules are loaded by the active agent instructions, not merely downloaded. If either is missing, briefly remind the user to install or activate it. Do not block the task or repeat the reminder during the same session.
+Once per session, before the first substantial coding task, check whether the `/mithril` framework and the always-on Constitution are active. Treat `/mithril` as installed when its command or `mithril-*` agents are available; treat the Constitution as installed only when its rules are loaded by the active agent instructions, not merely downloaded. If either is missing, briefly remind the user to install or activate it. Do not block the task or repeat the reminder during the same session.
 
 ## Implementation Conventions
 
