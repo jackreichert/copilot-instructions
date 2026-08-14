@@ -32,7 +32,8 @@ Before ANY code change (REQUIRED - never skip):
 2. Outline approach  
 3. List edge cases & errors  
 4. Identify dependencies  
-5. Consider alternatives  
+5. Consider alternatives
+6. Make it simpler: after assessing a solution take a step back and see if you can simplify it
 ​
 After EVERY code change (REQUIRED - never skip):
 1. Validate requirements against new and old buisness logic
